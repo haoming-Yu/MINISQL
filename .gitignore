@@ -1,0 +1,9 @@
+bin/
+build/
+dbfiles/
+datas/
+.vscode/
+.vs/
+.idea/
+cmake-build-debug/
+cmake-build-release/
