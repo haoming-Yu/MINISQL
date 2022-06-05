@@ -25,17 +25,19 @@ uint32_t TableMetadata::SerializeTo(char *buf) const {
   ofs += sizeof(root_page_id_);
 
   // 6. then write in the schema pointer
-  MACH_WRITE_TO(Schema *, buf + ofs, schema_);
-  ofs += sizeof(schema_);
+  this->schema_->SerializeTo(buf + ofs);
+  ofs += this->schema_->GetSerializedSize();
 
   return ofs;
 }
 
+// this function can only be called after the Deserialization is used.
 uint32_t TableMetadata::GetSerializedSize() const {
   if (table_name_.length() == 0) {
     return 0;
   }
-  return sizeof(schema_) + sizeof(root_page_id_) + table_name_.size() + sizeof(table_id_) + sizeof(uint32_t) * 2;
+  return this->schema_->GetSerializedSize() + sizeof(root_page_id_) + table_name_.size() + sizeof(table_id_) +
+         sizeof(uint32_t) * 2;
 }
 
 /**
@@ -49,6 +51,7 @@ uint32_t TableMetadata::DeserializeFrom(char *buf, TableMetadata *&table_meta, M
     return 0;
   }
 
+  char *orig_buf = buf;
   // 1. read and check the magic number
   uint32_t magic_num = MACH_READ_UINT32(buf);
   ASSERT(magic_num == TABLE_METADATA_MAGIC_NUM, "TABLE_META_DATA_MAGIC_NUM does not match");
@@ -74,12 +77,12 @@ uint32_t TableMetadata::DeserializeFrom(char *buf, TableMetadata *&table_meta, M
   buf += sizeof(page_id_t);
 
   // 6. read the schema pointer out
-  Schema *schema_tmp = *reinterpret_cast<Schema **>(buf);
-  buf += sizeof(Schema*);
-  
+  Schema *schema_tmp = nullptr;
+  buf += Schema::DeserializeFrom(buf, schema_tmp, heap);
+   
   table_meta = Create(table_id_tmp, name_tmp, root_id_tmp, schema_tmp, heap);
 
-  return sizeof(schema_) + sizeof(root_page_id_) + length + sizeof(table_id_) + sizeof(uint32_t) * 2;
+  return buf - orig_buf;
 }
 
 /**

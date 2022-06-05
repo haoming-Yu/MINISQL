@@ -182,7 +182,7 @@ void DiskManager::DeAllocatePage(page_id_t logical_page_id) {
   //Situation 0: if the extents is Empty, We could not DeAllocate.
   if(meta_page->GetExtentNums()==0)
   {
-    std::cerr<<"Error- Can not DeAllocate the Extent"<<std::endl;
+    // std::cerr<<"Error- Can not DeAllocate the Extent"<<std::endl;
     return ; // stop the execution of the rest of the function.
   }
 

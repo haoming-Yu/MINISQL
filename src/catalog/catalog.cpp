@@ -246,9 +246,6 @@ dberr_t CatalogManager::GetTables(vector<TableInfo *> &tables) const {
   }
 }
 
-// ATTENTION!!!
-// the test file has bug! When dealing with case where all keys are not unique key, this createindex should be ERROR
-// Need to change to support the case for unique key
 dberr_t CatalogManager::CreateIndex(const std::string &table_name, const string &index_name,
                                     const std::vector<std::string> &index_keys, Transaction *txn,
                                     IndexInfo *&index_info) {

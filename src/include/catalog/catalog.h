@@ -100,6 +100,17 @@ public:
     return DB_SUCCESS;
   }
 
+  dberr_t GetAllIndexNames(const std::string &table_name, std::vector<std::string> &indexes) {
+    auto iter_outer = this->index_names_.find(table_name);
+    if (iter_outer == this->index_names_.end()) {
+      return DB_INDEX_NOT_FOUND;
+    }
+    for (auto i : iter_outer->second) {
+      indexes.push_back(i.first);
+    }
+    return DB_SUCCESS;
+  }
+
   // for convenience
   CatalogMeta *GetMeta(void);
 

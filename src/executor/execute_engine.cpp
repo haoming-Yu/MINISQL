@@ -1,3 +1,10 @@
+extern "C" {
+int yyparse(void);
+
+#include "parser/minisql_lex.h"
+#include "parser/parser.h"
+}
+
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
 #include <fstream>
@@ -39,10 +46,10 @@ dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
   }
   switch (ast->type_) {
       //yhm
-    case kNodeCreateDB:
+    case kNodeCreateDB://-ok
       return ExecuteCreateDatabase(ast, context);
       //yhm
-    case kNodeDropDB:
+    case kNodeDropDB://-ok
       return ExecuteDropDatabase(ast, context);
       //cjx
     case kNodeShowDB://-ok
@@ -57,22 +64,22 @@ dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
     case kNodeCreateTable://--ok
       return ExecuteCreateTable(ast, context);
       //yhm
-    case kNodeDropTable:
+    case kNodeDropTable://--ok
       return ExecuteDropTable(ast, context);
       //yhm
-    case kNodeShowIndexes:
+    case kNodeShowIndexes://--ok
       return ExecuteShowIndexes(ast, context);
       //yhm
-    case kNodeCreateIndex:
+    case kNodeCreateIndex://-ok
       return ExecuteCreateIndex(ast, context);
       //yhm
-    case kNodeDropIndex:
+    case kNodeDropIndex://--ok
       return ExecuteDropIndex(ast, context);
       //select * from table ---yhm&cjx
-    case kNodeSelect:
+    case kNodeSelect://-ok
       return ExecuteSelect(ast, context);
       //cjx---ok
-    case kNodeInsert:
+    case kNodeInsert://-ok
       return ExecuteInsert(ast, context);
       //yhm
     case kNodeDelete:
@@ -81,19 +88,19 @@ dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
     case kNodeUpdate:
       return ExecuteUpdate(ast, context);
       //No
-    case kNodeTrxBegin:
+    case kNodeTrxBegin://-ok
       return ExecuteTrxBegin(ast, context);
       //No
-    case kNodeTrxCommit:
+    case kNodeTrxCommit://-ok
       return ExecuteTrxCommit(ast, context);
       //No
-    case kNodeTrxRollback:
+    case kNodeTrxRollback://-ok
       return ExecuteTrxRollback(ast, context);
       //cjx
-    case kNodeExecFile:
+    case kNodeExecFile://-ok
       return ExecuteExecfile(ast, context);
       //Complished
-    case kNodeQuit:
+    case kNodeQuit://-ok
       return ExecuteQuit(ast, context); // nop
     default:
       break;
@@ -367,7 +374,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     {
       return DB_FAILED;
     }
-
+    // maybe should use the NewTableInfo to do something when succeed.
   }
   return DB_SUCCESS;
 }
@@ -379,28 +386,150 @@ dberr_t ExecuteEngine::ExecuteDropTable(pSyntaxNode ast, ExecuteContext *context
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropTable" << std::endl;
 #endif
-  return DB_FAILED;
+  if (this->current_db_.empty()) {
+    std::cerr << "Select a database first!" << std::endl;
+    return DB_FAILED;
+  }
+
+  auto iter_db_file = this->dbs_.find(this->current_db_);
+  if (iter_db_file == this->dbs_.end()) {
+    std::cerr << "The database does not exist!" << std::endl; // this should be prevented by use executor
+    return DB_FAILED;
+  }
+
+  // now the file has been found
+  DBStorageEngine *storage = iter_db_file->second;
+  CatalogManager *catalog = storage->catalog_mgr_;
+  pSyntaxNode child = ast->child_;
+  std::string deleted_tbl(child->val_);
+  return catalog->DropTable(deleted_tbl);
 }
 
 dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteShowIndexes" << std::endl;
 #endif
-  return DB_FAILED;
+  if (this->current_db_.empty()) {
+    std::cerr << "Select a database first!" << std::endl;
+    return DB_FAILED;
+  }
+
+  auto iter_db_file = this->dbs_.find(this->current_db_);
+  if (iter_db_file == this->dbs_.end()) {
+    std::cerr << "The database does not exist!" << std::endl;  // this should be prevented by use executor
+    return DB_FAILED;
+  }
+
+  // now the file has been found
+  DBStorageEngine *storage = iter_db_file->second;
+  CatalogManager *catalog = storage->catalog_mgr_;
+  std::vector<std::string> table_names;
+  if (catalog->GetAllTableNames(table_names) != DB_SUCCESS) {
+    return DB_FAILED;
+  }
+
+  for (auto i:table_names) {
+    std::vector<std::string> index_names;
+    catalog->GetAllIndexNames(i, index_names);
+    std::cout << "+-------------------------------------+" << endl;
+    std::cout << "| " << left << setw(36) << i << '|' << endl;
+    std::cout << "+-------------------------------------+" << endl;
+    for (auto j : index_names) {
+      std::cout << "| " << left << setw(36) << j << '|' << endl;
+    }
+    std::cout << "+-------------------------------------+" << endl << std::endl;
+  }
+
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteCreateIndex" << std::endl;
 #endif
-  return DB_FAILED;
+  if (this->current_db_.empty()) {
+    // if the current_db_ is empty
+    std::cerr << "You have not specify the Database you are going to use!" << std::endl;
+    return DB_FAILED;
+  }
+  auto iter_dbs = this->dbs_.find(this->current_db_);
+  if (iter_dbs == this->dbs_.end()) {
+    return DB_FAILED; // should be prevented in the use execution, so this can not happen
+  }
+  DBStorageEngine *cur_db = iter_dbs->second;
+  CatalogManager *cata = cur_db->catalog_mgr_;
+
+  // Get the nodes out
+  pSyntaxNode child = ast->child_;
+  std::string idx_name(child->val_);
+  std::string tbl_name(child->next_->val_);
+  pSyntaxNode turns = child->next_->next_;
+  std::string turn_flag(turns->val_);
+  std::string tmp = "index keys";
+  pSyntaxNode keys_node = turns->child_;
+  if (turn_flag != tmp) {
+    return DB_FAILED;
+  }
+  std::vector<std::string> idx_keys;
+  while (keys_node) {
+    // no need to deal with the case with no keys -> the parser will do the check
+    std::string tmp(keys_node->val_);
+    idx_keys.push_back(tmp);
+    keys_node = keys_node->next_;
+  }
+  // the information has been traited out from the parser tree.
+  IndexInfo *IFO = nullptr;
+  dberr_t rst = cata->CreateIndex(tbl_name, idx_name, idx_keys, nullptr, IFO); 
+  if (rst == DB_SUCCESS) {
+    // should do something about IFO
+  }
+
+  return rst;
 }
 
 dberr_t ExecuteEngine::ExecuteDropIndex(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropIndex" << std::endl;
 #endif
-  return DB_FAILED;
+  // as a consequence of a problem in the design of parser tree, so here we can not deal with the case 
+  // with multi-indexes have the same name.
+  // here the solution is: we delete all the indexes which has the same name as the instruction.
+
+  // Get the information in the instruction out.
+  pSyntaxNode child = ast->child_;
+  std::string del_idx_name(child->val_);
+  if (this->current_db_.empty()) {
+    std::cerr << "Select a database first!" << std::endl;
+    return DB_FAILED;
+  }
+
+  // do the general file selection
+  auto iter_db_file = this->dbs_.find(this->current_db_);
+  if (iter_db_file == this->dbs_.end()) {
+    std::cerr << "The database does not exist!" << std::endl;  // this should be prevented by use executor
+    return DB_FAILED;
+  }
+
+  // now the file has been found
+  DBStorageEngine *storage = iter_db_file->second;
+  CatalogManager *catalog = storage->catalog_mgr_;
+  std::vector<std::string> table_names;
+  if (catalog->GetAllTableNames(table_names) != DB_SUCCESS) {
+    return DB_FAILED;
+  }
+  for (auto i : table_names) {
+    IndexInfo *IFO = nullptr;
+    catalog->GetIndex(i, del_idx_name, IFO);
+    if (IFO == nullptr) {
+      continue;
+    }
+    std::string cur_idx_name = IFO->GetIndexName();
+    if (catalog->DropIndex(i, cur_idx_name, true) != DB_SUCCESS) {
+      return DB_FAILED;
+    }
+  }
+
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
@@ -463,151 +592,117 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
   } 
   else 
   {
-        // Step0: Prepare StorageEngine and CatalogManager
-        // Get the Storage of the DbstorageEngine
-        auto StorageEngine_Iter = this->dbs_.find(this->current_db_);
-        auto Current_Storage_Engine = StorageEngine_Iter->second;
-        auto Current_Ctr = Current_Storage_Engine->catalog_mgr_;
+    // Step0: Prepare StorageEngine and CatalogManager
+    // Get the Storage of the DbstorageEngine
+    auto StorageEngine_Iter = this->dbs_.find(this->current_db_);
+    auto Current_Storage_Engine = StorageEngine_Iter->second;
+    auto Current_Ctr = Current_Storage_Engine->catalog_mgr_;
 
-        // Step1: Check the Table is in the CatalogManager or not
-        // Get the Table Name
-        pSyntaxNode ast_TableName = ast->child_;
-        std::string TableName = (ast_TableName->val_);
-        TableInfo *CurTableInfo = nullptr;
-        dberr_t state =Current_Ctr->GetTable(TableName, CurTableInfo);
-        std::vector<Field> Fields;
-        // Get the MemHeap
-        MemHeap *CurMemHeap = CurTableInfo->GetMemHeap();
+    // Step1: Check the Table is in the CatalogManager or not
+    // Get the Table Name
+    pSyntaxNode ast_TableName = ast->child_;
+    std::string TableName = (ast_TableName->val_);
+    TableInfo *CurTableInfo = nullptr;
+    dberr_t state =Current_Ctr->GetTable(TableName, CurTableInfo);
+    std::vector<Field> Fields;
+    // Get the MemHeap
+    MemHeap *CurMemHeap = CurTableInfo->GetMemHeap();
 
-        //Table is not Exists in the Current Database
-        if (state == DB_TABLE_NOT_EXIST) 
-        {
-            std::cerr << "Choose the DataBase First" << std::endl;
-            return DB_FAILED;
-        } 
-        else 
-        {
-            //0. Get the Shema of the Table
-          Schema *CurSchema = CurTableInfo->GetSchema();
-          std::vector<Column *> Columns = CurSchema->GetColumns();
-          int CurPosition = 0;
-          dberr_t state;
-         
-          for (pSyntaxNode ColumnNode = ast_TableName->next_->child_; ColumnNode != nullptr;
-               ColumnNode = ColumnNode->next_,CurPosition++) 
-          {
-            // 1. Check Value Type
-            // 2. Check Not null
-            // 3. Get the Entity of the Fields
-            switch (ColumnNode->type_) 
-            {
-            
-                 case SyntaxNodeType::kNodeNull:
-                     //Current Column can not be null
-                    if (Columns[CurPosition]->IsNullable() == false) 
-                    {
-                       state = DB_FAILED;
-                    } 
-                    else 
-                    {
-                        char* mem=(char*)CurMemHeap->Allocate(sizeof(char) * 5);
-                        strcpy(mem, "null");
-                        Fields.push_back(Field(kTypeChar, mem, 5, true));
-                        state = DB_SUCCESS;
-                    }
-                    break;
-                 
-                 case SyntaxNodeType::kNodeNumber:
-                   if (Columns[CurPosition]->GetType() == kTypeInt || Columns[CurPosition]->GetType() == kTypeFloat) 
-                   {
-                        if (Columns[CurPosition]->GetType() == kTypeInt) 
-                        {
-                            std::string str(ColumnNode->val_);
-                            int Number = atoi(str.c_str());
-                            Fields.push_back(Field(kTypeInt, Number));
-                        } 
-                        else if (Columns[CurPosition]->GetType() == kTypeFloat) 
-                        {
-                          std::string str(ColumnNode->val_);
-                          float f = atof(str.c_str());
-                          Fields.push_back(Field(kTypeFloat,f ));
-                        
-                        } 
-                        state = DB_SUCCESS;
-                        
-                   } 
-                   else 
-                   {
-                        state = DB_FAILED;
-                   }
-                   break;
+    //Table is not Exists in the Current Database
+    if (state == DB_TABLE_NOT_EXIST) 
+    {
+        std::cerr << "Choose the DataBase First" << std::endl;
+        return DB_FAILED;
+    } 
+    else {
+      // 0. Get the Shema of the Table
+      Schema *CurSchema = CurTableInfo->GetSchema();
+      std::vector<Column *> Columns = CurSchema->GetColumns();
+      int CurPosition = 0;
+      dberr_t state;
 
-                 case SyntaxNodeType::kNodeString:
-                   if (Columns[CurPosition]->GetType() == kTypeChar) 
-                   {
-                        
-                        Fields.push_back(Field(kTypeChar, ColumnNode->val_,Columns[CurPosition]->GetLength(),true));
-                        state = DB_SUCCESS;
-                   } 
-                   else 
-                   {
-                        state = DB_FAILED;   
-                   }
-                   break;
-
-                 default:
-                        state = DB_FAILED;
-                   break;
-            
+      for (pSyntaxNode ColumnNode = ast_TableName->next_->child_; ColumnNode != nullptr;
+           ColumnNode = ColumnNode->next_, CurPosition++) {
+        // 1. Check Value Type
+        // 2. Check Not null
+        // 3. Get the Entity of the Fields
+        switch (ColumnNode->type_) {
+          case SyntaxNodeType::kNodeNull:
+            // Current Column can not be null
+            if (Columns[CurPosition]->IsNullable() == false) {
+              state = DB_FAILED;
+            } else {
+              char *mem = (char *)CurMemHeap->Allocate(sizeof(char) * 5);
+              strcpy(mem, "null");
+              Fields.push_back(Field(kTypeChar, mem, 5, true));
+              state = DB_SUCCESS;
             }
-                if (state == DB_FAILED) 
-                {
-                    return state;
-                 }
-            
-            // 3. Check Unique
-            // Traverse the TableHeap to Check the New Inserted Column is Unique or Not
-                if (Columns[CurPosition]->IsUnique() == true) 
-                {
-                        TableHeap *CurTableHeap = CurTableInfo->GetTableHeap();
-                        for (TableIterator iter = CurTableHeap->Begin(nullptr); iter != CurTableHeap->End(); iter++) 
-                        {
-                        //if there is value in the Table Heap is Equal with the NewInserted Tuple
-                            if (iter->GetField(CurPosition)->CompareEquals(Fields[CurPosition]) == kTrue) 
-                            {
-                                state = DB_FAILED;
-                                break;
-                            }
-                        }
-                }
-                if (state == DB_FAILED) 
-                {
-                    return state;
-                }
-           
-          
-          
-          }
-            // 4. Insert Tuple
-            TableHeap *CurTableHeap = CurTableInfo->GetTableHeap();
-            Row NewRow(Fields);
-            bool InsertState = CurTableHeap->InsertTuple(NewRow, nullptr);
-            if (InsertState) 
-            {
-                return DB_SUCCESS;
-            } 
-            else {
-                std::cout << "InsertTuple Failed" << endl;
-                return DB_FAILED;
-            }
-            //5. Check the Index- If Exists Index, we need to Update the Index too.
+            break;
 
+          case SyntaxNodeType::kNodeNumber:
+            if (Columns[CurPosition]->GetType() == kTypeInt || Columns[CurPosition]->GetType() == kTypeFloat) {
+              if (Columns[CurPosition]->GetType() == kTypeInt) {
+                std::string str(ColumnNode->val_);
+                int Number = atoi(str.c_str());
+                Fields.push_back(Field(kTypeInt, Number));
+              } else if (Columns[CurPosition]->GetType() == kTypeFloat) {
+                std::string str(ColumnNode->val_);
+                float f = atof(str.c_str());
+                Fields.push_back(Field(kTypeFloat, f));
+              }
+              state = DB_SUCCESS;
+
+            } else {
+              state = DB_FAILED;
+            }
+            break;
+
+          case SyntaxNodeType::kNodeString:
+            if (Columns[CurPosition]->GetType() == kTypeChar) {
+              Fields.push_back(Field(kTypeChar, ColumnNode->val_, Columns[CurPosition]->GetLength(), true));
+              state = DB_SUCCESS;
+            } else {
+              state = DB_FAILED;
+            }
+            break;
+
+          default:
+            state = DB_FAILED;
+            break;
+        }
+        if (state == DB_FAILED) {
+          return state;
         }
 
-    
-  
+        // 3. Check Unique
+        // Traverse the TableHeap to Check the New Inserted Column is Unique or Not
+        if (Columns[CurPosition]->IsUnique() == true) {
+          TableHeap *CurTableHeap = CurTableInfo->GetTableHeap();
+          for (TableIterator iter = CurTableHeap->Begin(nullptr); iter != CurTableHeap->End(); iter++) {
+            // if there is value in the Table Heap is Equal with the NewInserted Tuple
+            if (iter->GetField(CurPosition)->CompareEquals(Fields[CurPosition]) == kTrue) {
+              state = DB_FAILED;
+              break;
+            }
+          }
+        }
+        if (state == DB_FAILED) {
+          return state;
+        }
+      }
+      // 4. Insert Tuple
+      TableHeap *CurTableHeap = CurTableInfo->GetTableHeap();
+      Row NewRow(Fields);
+      bool InsertState = CurTableHeap->InsertTuple(NewRow, nullptr);
+      if (InsertState) {
+        return DB_SUCCESS;
+      } else {
+        std::cout << "InsertTuple Failed" << endl;
+        return DB_FAILED;
+      }
+      // 5. Check the Index- If Exists Index, we need to Update the Index too.
+    }
   }
-
   
   return DB_FAILED;
 }
@@ -616,6 +711,7 @@ dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDelete" << std::endl;
 #endif
+  // working on it;
   return DB_FAILED;
 }
 
@@ -651,7 +747,70 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteExecfile" << std::endl;
 #endif
-  return DB_FAILED;
+  string FileName(ast->child_->val_);
+  std::ifstream fin;
+  fin.open(FileName, std::ios::in);
+  if (!fin) {
+    cout << "Open Failed" << endl;
+    return DB_FAILED;
+  }
+  char line[1024] = {0};
+  // int buf_size = 1024;
+  string tmp;
+
+  while (fin.getline(line, sizeof(line))) {
+    std::stringstream word(line);
+    string result;
+    int flag = 0;
+    while (word) {
+      word >> tmp;
+      if (flag != 0) result += " ";
+      result += tmp;
+      flag++;
+    }
+    cout << result << endl;
+    YY_BUFFER_STATE bp = yy_scan_string(line);
+    if (bp == nullptr) {
+      LOG(ERROR) << "Failed to create yy buffer state." << std::endl;
+      exit(1);
+    }
+    yy_switch_to_buffer(bp);
+
+    // init parser module
+    MinisqlParserInit();
+
+    // parse
+    yyparse();
+
+    // parse result handle
+    if (MinisqlParserGetError()) {
+      // error
+      printf("%s\n", MinisqlParserGetErrorMessage());
+    } else {
+      printf("[INFO] Sql syntax parse ok!\n");
+    }
+
+    ExecuteContext context;
+    dberr_t exe_rst = Execute(MinisqlGetParserRootNode(), &context);
+    if (exe_rst == DB_SUCCESS) {
+      printf("EXECUTE SUCCESS\n");
+    } else if (exe_rst == DB_FAILED) {
+      printf("EXECUTE FAILED\n");
+    }
+
+    // clean memory after parse
+    MinisqlParserFinish();
+    yy_delete_buffer(bp);
+    yylex_destroy();
+
+    // quit condition
+    if (context.flag_quit_) {
+      printf("bye!\n");
+      break;
+    }
+  }
+
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteQuit(pSyntaxNode ast, ExecuteContext *context) {
