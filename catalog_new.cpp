@@ -139,8 +139,7 @@ CatalogManager::CatalogManager(BufferPoolManager *buffer_pool_manager, LockManag
           TableMetadata::DeserializeFrom(table_page->GetData(), table_meta, table_info->GetMemHeap());
           buffer_pool_manager_->UnpinPage(iter_table->second, false);
           if (table_meta != nullptr) {
-            auto *table_heap = TableHeap::Create(buffer_pool_manager_, table_meta->GetFirstPageId(),
-                                                 table_meta->GetSchema(),
+            auto *table_heap = TableHeap::Create(buffer_pool_manager_, iter_table->second, table_meta->GetSchema(),
                                                  nullptr, nullptr, table_info->GetMemHeap());
             table_info->Init(table_meta, table_heap);
             cor_table_name = table_info->GetTableName();
@@ -186,8 +185,8 @@ dberr_t CatalogManager::CreateTable(const string &table_name, TableSchema *schem
     // this table name has been occupied
     return DB_TABLE_ALREADY_EXIST;
   }
-  // 1.Create the TableMetaPage for the Table
-
+  //1.Create the TableMetaPage for the Table
+ 
   page_id_t table_page;
   Page *page = this->buffer_pool_manager_->NewPage(table_page);  // table_page now store the page id of the table
   if (page == nullptr) {
@@ -197,16 +196,14 @@ dberr_t CatalogManager::CreateTable(const string &table_name, TableSchema *schem
   this->table_names_.emplace(table_name, next_table_id_tmp); // store the map of name and table_id into CatalogManager
   this->catalog_meta_->table_meta_pages_.emplace(next_table_id_tmp, table_page); // store the map of new table information
   auto table_info_tmp = TableInfo::Create(heap_);
-  // 2. create the table heap
-
-  auto table_heap =
+  //2.Create the Table Heap
+  auto *table_heap =
       TableHeap::Create(buffer_pool_manager_, schema, nullptr, nullptr, nullptr, table_info_tmp->GetMemHeap());
   TableMetadata *table_meta =
       TableMetadata::Create(next_table_id_tmp, table_name, table_heap->GetFirstPageId(), schema, heap_);
-  // 3. table_meta SerializeTo TableMetaPage
+  //3.table_meta SerializeTo TableMetaPage
   table_meta->SerializeTo(page->GetData());
-
-  // 4. give the pointer heap upper user to get the information
+  //4.Give the Pointer help Upper User to Get the Information
   table_info_tmp->Init(table_meta, table_heap);
   this->tables_.emplace(next_table_id_tmp, table_info_tmp);
   table_info = table_info_tmp;

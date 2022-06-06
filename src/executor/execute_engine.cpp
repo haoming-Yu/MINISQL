@@ -75,7 +75,6 @@ dberr_t ExecuteEngine::Execute(pSyntaxNode ast, ExecuteContext *context) {
       //yhm
     case kNodeDropIndex://--ok
       return ExecuteDropIndex(ast, context);
-      //select * from table ---yhm&cjx
     case kNodeSelect://-ok
       return ExecuteSelect(ast, context);
       //cjx---ok
@@ -585,13 +584,10 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteInsert" << std::endl;
 #endif
-  if (this->current_db_.empty()) 
-  {
+  if (this->current_db_.empty()) {
     std::cerr << "Choose the DataBase First" << std::endl;
     return DB_FAILED;
-  } 
-  else 
-  {
+  } else {
     // Step0: Prepare StorageEngine and CatalogManager
     // Get the Storage of the DbstorageEngine
     auto StorageEngine_Iter = this->dbs_.find(this->current_db_);
@@ -603,18 +599,16 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
     pSyntaxNode ast_TableName = ast->child_;
     std::string TableName = (ast_TableName->val_);
     TableInfo *CurTableInfo = nullptr;
-    dberr_t state =Current_Ctr->GetTable(TableName, CurTableInfo);
+    dberr_t state = Current_Ctr->GetTable(TableName, CurTableInfo);
     std::vector<Field> Fields;
     // Get the MemHeap
     MemHeap *CurMemHeap = CurTableInfo->GetMemHeap();
 
-    //Table is not Exists in the Current Database
-    if (state == DB_TABLE_NOT_EXIST) 
-    {
-        std::cerr << "Choose the DataBase First" << std::endl;
-        return DB_FAILED;
-    } 
-    else {
+    // Table is not Exists in the Current Database
+    if (state == DB_TABLE_NOT_EXIST) {
+      std::cerr << "Choose the DataBase First" << std::endl;
+      return DB_FAILED;
+    } else {
       // 0. Get the Shema of the Table
       Schema *CurSchema = CurTableInfo->GetSchema();
       std::vector<Column *> Columns = CurSchema->GetColumns();
@@ -694,25 +688,104 @@ dberr_t ExecuteEngine::ExecuteInsert(pSyntaxNode ast, ExecuteContext *context) {
       TableHeap *CurTableHeap = CurTableInfo->GetTableHeap();
       Row NewRow(Fields);
       bool InsertState = CurTableHeap->InsertTuple(NewRow, nullptr);
+
       if (InsertState) {
+        // 5. Update the Index to The Correspoding the Index
+        // Step1- Get All Index From the Correspoding TableName
+        std::vector<std::string> IndexName;
+        dberr_t state = Current_Ctr->GetAllIndexNames(TableName, IndexName);
+        if (state != DB_INDEX_NOT_FOUND) {
+          // There are Index for the Table needed to Update
+          for (std::vector<std::string>::iterator iter = IndexName.begin(); iter != IndexName.end(); iter++) {
+            IndexInfo *index_info = nullptr;
+            if (Current_Ctr->GetIndex(TableName, (*iter), index_info) == DB_SUCCESS) {
+              index_info->GetIndex()->InsertEntry(NewRow, NewRow.GetRowId(), nullptr);
+            }
+          }
+        }
         return DB_SUCCESS;
+
       } else {
         std::cout << "InsertTuple Failed" << endl;
         return DB_FAILED;
       }
-      // 5. Check the Index- If Exists Index, we need to Update the Index too.
     }
   }
-  
+
   return DB_FAILED;
 }
-
 dberr_t ExecuteEngine::ExecuteDelete(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDelete" << std::endl;
 #endif
-  // working on it;
-  return DB_FAILED;
+  // 1. Get the information out of the syntax tree
+  pSyntaxNode des_tbl = ast->child_;
+  std::string dl_tbl_name(des_tbl->val_);
+  // above get the basic information -> format: delete from <table_name>; #(clear all the tuples in the table)
+
+  // 2. do the database file select and find
+  if (this->current_db_.empty()) {
+    std::cerr << "Select a database first!" << std::endl;
+    return DB_FAILED;
+  }
+
+  auto iter_db_file = this->dbs_.find(this->current_db_);
+  if (iter_db_file == this->dbs_.end()) {
+    std::cerr << "The database does not exist!" << std::endl;  // this should be prevented by use executor
+    return DB_FAILED;
+  }
+
+  // now the file has been found
+  DBStorageEngine *storage = iter_db_file->second;
+  CatalogManager *catalog = storage->catalog_mgr_;
+  TableInfo *dl_IFO;
+  dberr_t rst = catalog->GetTable(dl_tbl_name, dl_IFO);
+  if (rst == DB_TABLE_NOT_EXIST) {
+    std::cerr << "The target table does not exist, create and insert first" << std::endl;
+    return DB_TABLE_NOT_EXIST; // can not get the table of target table, something goes wrong.
+  }
+
+  // now get the table heap and index information created on the table.
+  TableHeap *tbl_heap = dl_IFO->GetTableHeap();
+  std::vector<IndexInfo*> tbl_indexes;
+  dberr_t rst_getidx = catalog->GetTableIndexes(dl_tbl_name, tbl_indexes);
+  if (rst_getidx == DB_FAILED) {
+    return DB_FAILED; // the inconsistence information stopped the execution.
+    // if rst is DB_INDEX_NOT_FOUND, then just do the table heap deletion
+    // if rst is DB_SUCCESS, then need to refresh and delete tuple in the indexes as well.
+  }
+  
+  // note that delete must maintain indexes as well as table heap
+  // 1. do the deletion in the table heap
+  for (auto i = tbl_heap->Begin(nullptr); i != tbl_heap->End(); ++i) {
+    RowId cur_rowid = i->GetRowId();
+    if (tbl_heap->MarkDelete(cur_rowid, nullptr) == false) {
+      std::cout << "Something wrong! Something can not be deleted!" << std::endl;
+    }
+    // 2. do the deletion in the table's indexes
+    if (rst_getidx == DB_INDEX_NOT_FOUND) {
+      // no index found on the table. No need to refresh indexes, just do the next deletion
+      continue;
+    }
+    // below refresh the indexes on the table
+    std::vector<Field*> fields = i->GetFields();
+    std::vector<Field> field_obj;
+    Schema *schema = dl_IFO->GetSchema();
+    std::vector<Column *> col = schema->GetColumns();
+    for (auto k : fields) {
+      field_obj.push_back(Field(*k));
+    }
+    // create the field;
+    Row cur_row(field_obj);
+    for (auto j : tbl_indexes) {
+      Index* cur_idx = j->GetIndex();
+      if (cur_idx->RemoveEntry(cur_row, cur_rowid, nullptr) != DB_SUCCESS) {
+        std::cerr << "Something wrong! Can not remove entry in the indexes" << std::endl;
+      }
+    }
+  }
+
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteUpdate(pSyntaxNode ast, ExecuteContext *context) {

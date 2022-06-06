@@ -92,20 +92,19 @@ public:
   }
 
   inline const char *GetData() const {
-      
     char *tmp = new char[30];
     if (type_id_ == kTypeInt) 
     {
-    int Integer1 = value_.integer_;
-    string s =string(std::to_string(Integer1));
-    strcpy(tmp, s.c_str());
-    return tmp;
+      int Integer1 = value_.integer_;
+      string s =string(std::to_string(Integer1));
+      strcpy(tmp, s.c_str());
+      return tmp;
     } 
     else if (type_id_==kTypeFloat) 
     {
-        float number = value_.float_;
+      float number = value_.float_;
       string s = string(std::to_string(number));
-       strcpy(tmp,s.c_str());
+      strcpy(tmp,s.c_str());
       return tmp;
     }
     else return Type::GetInstance(type_id_)->GetData(*this);
