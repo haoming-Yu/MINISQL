@@ -90,6 +90,8 @@ public:
 
   inline TableInfo *GetTableInfo() const { return table_info_; }
 
+  inline IndexMetadata *GetMetaData() const { return this->meta_data_; }
+
 private:
   explicit IndexInfo() : meta_data_{nullptr}, index_{nullptr}, table_info_{nullptr},
                          key_schema_{nullptr}, heap_(new SimpleMemHeap()) {}

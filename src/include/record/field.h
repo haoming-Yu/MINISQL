@@ -91,23 +91,19 @@ public:
     return Type::GetInstance(type_id_)->GetLength(*this);
   }
 
-  inline const char *GetData() const {
-    char *tmp = new char[30];
-    if (type_id_ == kTypeInt) 
-    {
+  inline const char *GetData() const { return Type::GetInstance(type_id_)->GetData(*this); }
+
+  inline void GetDataToString(string &tmp) const {
+    if (type_id_ == kTypeInt) {
       int Integer1 = value_.integer_;
-      string s =string(std::to_string(Integer1));
-      strcpy(tmp, s.c_str());
-      return tmp;
-    } 
-    else if (type_id_==kTypeFloat) 
-    {
+      tmp = string(std::to_string(Integer1));
+    } else if (type_id_ == kTypeFloat) {
       float number = value_.float_;
-      string s = string(std::to_string(number));
-      strcpy(tmp,s.c_str());
-      return tmp;
+      tmp = string(std::to_string(number));
+    } else {
+      tmp = string(Type::GetInstance(type_id_)->GetData(*this));
     }
-    else return Type::GetInstance(type_id_)->GetData(*this);
+    return;
   }
 
   inline uint32_t SerializeTo(char *buf) const {

@@ -1,0 +1,1 @@
+~/.vs/jingxingcai2/out/build/linux-debug/bin in WSL
