@@ -53,3 +53,6 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 
 如果需要运行单个测试，例如，想要运行`lru_replacer_test.cpp`对应的测试文件，可以通过`make lru_replacer_test`
 命令进行构建。
+
+### 完成心得
+由于写入磁盘需要时间，源框架中设计了sleep(1)来保留这个时间，防止下一条指令执行之前前一条指令还没有成功实现，导致不一致的情况发生，可以在后续使用的时候将main.cpp中的sleep(1)重新写入，防止有时执行成功而有时执行失败的情况出现。
