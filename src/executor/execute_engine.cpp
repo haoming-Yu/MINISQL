@@ -7,6 +7,8 @@ int yyparse(void);
 
 #include <fstream>
 #include <iomanip>
+#include <ctime>
+#include <cstdlib>
 #include "executor/execute_engine.h"
 #include "glog/logging.h"
 #define ENABLE_EXECUTE_DEBUG
@@ -743,8 +745,14 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
     }
   }
   // 3. Exist Condition StateMent
+  clock_t out_diff;
   if (ast->child_->next_->next_ != nullptr) {
+    clock_t start, end;
+    start = clock();
     GetSatifedRowSet(ast, TableName, Current_Ctr, Result);
+    end = clock();
+    clock_t diff = end - start;
+    out_diff = diff;
   }
 
   else {
@@ -783,6 +791,7 @@ dberr_t ExecuteEngine::ExecuteSelect(pSyntaxNode ast, ExecuteContext *context) {
     std::cout << endl;
   }
   std::cout << "+-------------------------------------+" << endl;
+  printf("\n\nThe total time of selection is: %ld ticks\n\n", out_diff);
   return state;
 }
 // NOTE:: Due to Index Part Has not be Implemented , So Insert to Index not Implemented yet
