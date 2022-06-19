@@ -33,8 +33,8 @@ bool BitmapPage<PageSize>::AllocatePage(uint32_t &page_offset) {
   }
   else{
   //BitMap is Full
-      std::cout<<"Can not Allocate Page Anymore"<<std::endl;
-      state=false;
+    //std::cout<<"Can not Allocate Page Anymore"<<std::endl;
+    state=false;
   }
   return state;
 }
@@ -48,17 +48,17 @@ bool BitmapPage<PageSize>::DeAllocatePage(uint32_t page_offset) {
   if(this->page_allocated_==0||IsPageFree(page_offset)==true)
   {
     
-   std::cout<<"Allocate First"<<std::endl;
+    //std::cout<<"Allocate First"<<std::endl;
     state= false;
   }
   else 
   {
-      unsigned char tmp=0x01;
-      tmp=~(tmp<<(7-bit_index));
-      bytes[byte_index]=bytes[byte_index]&tmp;
-      this->page_allocated_--;
-      if(page_offset<this->next_free_page_)this->next_free_page_=page_offset;
-      state=true;
+    unsigned char tmp=0x01;
+    tmp=~(tmp<<(7-bit_index));
+    bytes[byte_index]=bytes[byte_index]&tmp;
+    this->page_allocated_--;
+    if(page_offset<this->next_free_page_)this->next_free_page_=page_offset;
+    state=true;
   }
   return state;
 }
