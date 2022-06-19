@@ -53,4 +53,5 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
   LRU_hash.emplace(frame_id, LRU_list.begin());  // refresh the hash table
 }
 
-size_t LRUReplacer::Size() { return LRU_list.size(); }  // return the current size of the buffer frame.
+size_t LRUReplacer::Size() { return LRU_list.size(); }  
+// return the current size of the buffer frame.
