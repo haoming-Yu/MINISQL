@@ -51,10 +51,6 @@ void DiskManager::ReadBitMapPage(page_id_t extent_id, char *page_data) {
 }
 
 
-// allocatePage function changed point: line 67, 68, 81, 82, 88, 102, 106
-// here only contains the changed version of allocatepage function and deallocatepage function
-// 2022-5-4
-// updator: haoming Yu
 page_id_t DiskManager::AllocatePage() {
   //0.Update Disk_File_Meta_page
   //1.We need to linear Search the Extent,and find the Extent which is not full
@@ -167,7 +163,6 @@ page_id_t DiskManager::AllocatePage() {
   return NextPage;
 }
 
-// deallocatePage function changed point is line 143 -> reason lies in 144th line.
 void DiskManager::DeAllocatePage(page_id_t logical_page_id) {
   
   //0.Update Disk_File_Meta_page
@@ -276,6 +271,7 @@ void DiskManager::DeAllocatePage(page_id_t logical_page_id) {
     }
   }
 }
+
 bool DiskManager::IsPageFree(page_id_t logical_page_id) {
   //1.First Find the Corresponding Extent_id.
   //2.Second Read the bitMap.
