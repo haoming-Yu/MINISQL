@@ -11,7 +11,7 @@
 static string db_file_name = "table_heap_test.db";
 using Fields = std::vector<Field>;
 
-TEST(TableHeapTest, DISABLED_TableHeapSampleTest) {
+TEST(TableHeapTest, TableHeapSampleTest) {
   // init testing instance
   DBStorageEngine engine(db_file_name);
   SimpleMemHeap heap;
@@ -107,8 +107,6 @@ TEST(TableHeapTest, TableHeapApplyDeleteTest) {
  // std::cout << "success" << endl;
 }
 
-
-
 TEST(TableHeapTest, TableHeapUpdateTest) {
   // init testing instance
   DBStorageEngine engine(db_file_name);
@@ -173,7 +171,7 @@ TEST(TableHeapTest, TableHeapUpdateTest) {
   //std::cout << "success" << endl;
   
 }
-TEST(TableHeapTest, DISABLED_TableHeapIteratorTest) {
+TEST(TableHeapTest, TableHeapIteratorTest) {
   // init testing instance
   DBStorageEngine engine(db_file_name);
   SimpleMemHeap heap;
@@ -227,5 +225,4 @@ TEST(TableHeapTest, DISABLED_TableHeapIteratorTest) {
   }
   table_heap->FreeHeap();
   //std::cout << "Success" << endl;
-
 }

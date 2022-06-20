@@ -57,9 +57,6 @@ bool TableHeap::MarkDelete(const RowId &rid, Transaction *txn) {
  * @param[in] txn Transaction performing the update
  * @return true is update is successful.
  */
-//#define INVALID_SLOT_NUMBER -1
-//#define TUPLE_DELETED -2
-//#define NOT_ENOUGH_SPACE -3
 bool TableHeap::UpdateTuple(Row &row, const RowId &rid, Transaction *txn) {
   auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(rid.GetPageId()));
   // Get OldRow
@@ -99,7 +96,7 @@ bool TableHeap::UpdateTuple(Row &row, const RowId &rid, Transaction *txn) {
   }
   return result;
 }
-// Question1:TupleCount�ı仯���� ���TupleCount��������ô��
+
 void TableHeap::ApplyDelete(const RowId &rid, Transaction *txn) {
   // Step1: Find the page which contains the tuple.
   auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(rid.GetPageId()));

@@ -84,7 +84,7 @@ uint32_t Column::GetSerializedSize() const { // calculate the serializedSize of 
 
 uint32_t Column::DeserializeFrom(char *buf, Column *&column, MemHeap *heap) {
   if (column != nullptr) {
-    std::cerr << "Pointer to column is not null in column deserialize." << std::endl;
+    // std::cerr << "Pointer to column is not null in column deserialize." << std::endl;
   } // a warning of covering original column storage in memory. -> Maybe need to comment away for upper level transparent.
   if(buf==NULL) return 0; // nothing to deserialize from. 
   
