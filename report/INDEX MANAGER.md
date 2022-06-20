@@ -8,7 +8,7 @@ Index Manager 负责数据表索引的实现和管理，包括：索引的创建
 
 ## 2. 实验总体框架
 
-![](INDEX MANAGER.assets/3.PNG)
+![3](INDEX%20MANAGER.assets/3.PNG)
 
 可以看到需要实现的B+树的结构，由于内部节点和叶节点的结构不同，因此在实现B+树需要分别实现`BPlusTreePage`和`BPlusInternalPage`，最后根据B+树的操作分别调用数据页中提供的接口函数。
 
@@ -570,11 +570,11 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::ResetParent(const page_id_t &old_node, cons
 
 *1.Insert*
 
-![](INDEX MANAGER.assets/1.PNG)
+![1](INDEX%20MANAGER.assets/1.PNG)
 
 *2.Remove*
 
-![](INDEX MANAGER.assets/2.PNG)
+![2](INDEX%20MANAGER.assets/2.PNG)
 
 ### 3.2 函数说明
 
@@ -1038,7 +1038,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::ResetParent(const page_id_t &old_node, cons
 
 + 测试BplusTree的`Insert`和`Remove`
 
-  ![](INDEX MANAGER.assets/4.PNG)
+  ![4](INDEX%20MANAGER.assets/4.PNG)
 
   
 
@@ -1168,13 +1168,13 @@ bool INDEXITERATOR_TYPE::operator!=(const IndexIterator &itr) const {
 
 + 测试BplusTree的`Iterator`
 
-![](INDEX MANAGER.assets/5.PNG)
+![5](INDEX%20MANAGER.assets/5.PNG)
 
 ### 3.5 总体测试
 
 + 测试BPlusTreeIndex的`BplusTree`和`Iterator`
 
-  ![](INDEX MANAGER.assets/6.PNG)
+  ![6](INDEX%20MANAGER.assets/6.PNG)
 
 ## 5. 模块相关代码
 
@@ -1188,6 +1188,4 @@ bool INDEXITERATOR_TYPE::operator!=(const IndexIterator &itr) const {
 - `src/storage/index/b_plus_tree.cpp`
 - `src/include/storage/index/index_iterator.h`
 - `src/storage/index/index_iterator.cpp`
-
-## 
 
